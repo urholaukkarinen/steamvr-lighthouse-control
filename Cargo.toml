@@ -1,0 +1,17 @@
+[package]
+name = "steamvr-lighthouse-control"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bleasy = "0.2.1"
+egui-macroquad = "0.8.0"
+egui = "0.16.1"
+macroquad = "0.3.0"
+uuid = "0.8.2"
+futures = "0.3.19"
+pretty_env_logger = "0.4.0"
+
+[dependencies.tokio]
+version = "1.16.1"
+features = ["full"]
