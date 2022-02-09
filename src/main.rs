@@ -4,10 +4,11 @@ use std::sync::Arc;
 use std::thread::spawn;
 use std::time::Duration;
 
+use crate::epi::Frame;
 use bleasy::{BDAddr, Device, DeviceEvent, Error, ScanConfig, Scanner};
-use egui::{Layout, Ui, Widget};
+use eframe::epi;
+use egui::{CtxRef, Layout, Ui, Vec2, Widget};
 use futures::StreamExt;
-use macroquad::prelude::*;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::sleep;
@@ -21,46 +22,51 @@ const POWER_UUID: Uuid = Uuid::from_u128(0x00001525_1212_EFDE_1523_785FEABCD124)
 const SCAN_TIMEOUT: Duration = Duration::from_millis(10000);
 const STATE_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
-fn window_conf() -> Conf {
-    Conf {
-        window_title: "SteamVR Lighthouse Control".to_owned(),
-        window_width: 450,
-        window_height: 300,
-        icon: None,
-        ..Default::default()
-    }
-}
-
-#[macroquad::main(window_conf)]
-async fn main() {
+fn main() {
     pretty_env_logger::init();
 
-    let app_state = Arc::new(Mutex::new(AppState::new()));
+    let state = Arc::new(Mutex::new(AppState::new()));
 
     // Channel for sending commands to ble thread
     let (cmd_tx, cmd_rx) = channel::<Command>(16);
 
     {
-        let app_state = app_state.clone();
+        let app_state = state.clone();
 
         spawn(move || ble_thread(app_state, cmd_rx));
     }
 
-    loop {
-        clear_background(BLACK);
+    let options = eframe::NativeOptions {
+        decorated: true,
+        drag_and_drop_support: false,
+        initial_window_size: Some(Vec2::new(450.0, 300.0)),
+        resizable: false,
+        transparent: false,
+        ..Default::default()
+    };
+    eframe::run_native(Box::new(App { state, cmd_tx }), options);
+}
 
-        egui_macroquad::ui(|egui_ctx| {
-            let mut app_state = app_state.blocking_lock();
+struct App {
+    state: Arc<Mutex<AppState>>,
+    cmd_tx: Sender<Command>,
+}
 
-            egui::CentralPanel::default().show(egui_ctx, |ui| {
-                ui_header(ui, &cmd_tx, &mut app_state);
-                ui.separator();
-                ui_device_list(ui, &cmd_tx, &mut app_state);
-            });
+impl epi::App for App {
+    fn update(&mut self, ctx: &CtxRef, frame: &Frame) {
+        let mut state = self.state.blocking_lock();
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui_header(ui, &self.cmd_tx, &mut state);
+            ui.separator();
+            ui_device_list(ui, &self.cmd_tx, &mut state);
         });
 
-        egui_macroquad::draw();
-        next_frame().await;
+        frame.request_repaint()
+    }
+
+    fn name(&self) -> &str {
+        "SteamVR Lighthouse Control"
     }
 }
 
@@ -69,7 +75,7 @@ struct AppState {
     scanner: Scanner,
     device_entries: HashMap<BDAddr, DeviceEntry>,
     ble_devices: HashMap<BDAddr, Device>,
-    error_state: Option<ErrorState>
+    error_state: Option<ErrorState>,
 }
 
 impl AppState {
@@ -78,7 +84,7 @@ impl AppState {
             scanner: Scanner::new(),
             device_entries: HashMap::new(),
             ble_devices: HashMap::new(),
-            error_state: None
+            error_state: None,
         }
     }
 
@@ -92,12 +98,6 @@ impl AppState {
                     .stop_after_timeout(SCAN_TIMEOUT),
             )
             .await
-    }
-
-    fn update_power_state(&mut self, device_addr: BDAddr, power: PowerState) {
-        if let Some(mut d) = self.device_entries.get_mut(&device_addr) {
-            d.power_state = power;
-        }
     }
 
     async fn insert_device(&mut self, device_addr: BDAddr, device: Device) {
@@ -114,7 +114,7 @@ impl AppState {
 }
 
 enum ErrorState {
-    StartFailed
+    StartFailed,
 }
 
 #[derive(Default)]
@@ -234,7 +234,9 @@ async fn ble_thread(app_state: Arc<Mutex<AppState>>, mut cmd_rx: Receiver<Comman
                             let state = data.as_slice().into();
 
                             if state != PowerState::Unknown {
-                                if let Some(mut d) = app_state.lock().await.device_entries.get_mut(&addr) {
+                                if let Some(mut d) =
+                                    app_state.lock().await.device_entries.get_mut(&addr)
+                                {
                                     d.power_state = state;
                                 }
                             }
@@ -356,12 +358,14 @@ fn ui_header(ui: &mut Ui, cmd_tx: &Sender<Command>, app_state: &mut MutexGuard<A
         match app_state.error_state {
             Some(ErrorState::StartFailed) => {
                 ui.label("Scan failed. Is bluetooth enabled?");
-            },
-            None => if app_state.scanner.is_active() {
-                Spinner::default().ui(ui);
-                ui.label("Scanning for base stations");
-            } else {
-                ui.label(format!("Found {} devices", app_state.device_entries.len()));
+            }
+            None => {
+                if app_state.scanner.is_active() {
+                    Spinner::default().ui(ui);
+                    ui.label("Scanning for base stations");
+                } else {
+                    ui.label(format!("Found {} devices", app_state.device_entries.len()));
+                }
             }
         }
 
