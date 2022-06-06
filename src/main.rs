@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
-use std::task::Context;
+
 use std::thread::spawn;
 use std::time::Duration;
 
@@ -9,8 +9,8 @@ use bleasy::{BDAddr, Device, DeviceEvent, Error, ScanConfig, Scanner};
 use eframe::{egui, Frame};
 use egui::{Layout, Ui, Vec2, Widget};
 use futures::StreamExt;
-use tokio::sync::{Mutex, MutexGuard};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::sleep;
 use uuid::Uuid;
 
@@ -41,7 +41,11 @@ fn main() {
         ..Default::default()
     };
 
-    eframe::run_native("SteamVR Lighthouse Control", options, Box::new(|_| Box::new(App { state, cmd_tx })));
+    eframe::run_native(
+        "SteamVR Lighthouse Control",
+        options,
+        Box::new(|_| Box::new(App { state, cmd_tx })),
+    );
 }
 
 struct App {
