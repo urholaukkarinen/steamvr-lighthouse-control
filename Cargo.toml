@@ -1,16 +1,15 @@
 [package]
 name = "steamvr-lighthouse-control"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-bleasy = "0.2.1"
-egui = "0.16.1"
-eframe = "0.16.0"
+bleasy = "0.2.2"
+eframe = { version = "0.18.0", features = ["dark-light"] }
 uuid = "0.8.2"
 futures = "0.3.19"
 pretty_env_logger = "0.4.0"
 
 [dependencies.tokio]
-version = "1.16.1"
+version = "1.17.0"
 features = ["full"]

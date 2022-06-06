@@ -1,22 +1,18 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
+use std::task::Context;
 use std::thread::spawn;
 use std::time::Duration;
 
-use crate::epi::Frame;
 use bleasy::{BDAddr, Device, DeviceEvent, Error, ScanConfig, Scanner};
-use eframe::epi;
-use egui::{CtxRef, Layout, Ui, Vec2, Widget};
+use eframe::{egui, Frame};
+use egui::{Layout, Ui, Vec2, Widget};
 use futures::StreamExt;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::time::sleep;
 use uuid::Uuid;
-
-use crate::widgets::Spinner;
-
-mod widgets;
 
 const POWER_UUID: Uuid = Uuid::from_u128(0x00001525_1212_EFDE_1523_785FEABCD124);
 const SCAN_TIMEOUT: Duration = Duration::from_millis(10000);
@@ -44,7 +40,8 @@ fn main() {
         transparent: false,
         ..Default::default()
     };
-    eframe::run_native(Box::new(App { state, cmd_tx }), options);
+
+    eframe::run_native("SteamVR Lighthouse Control", options, Box::new(|_| Box::new(App { state, cmd_tx })));
 }
 
 struct App {
@@ -52,8 +49,8 @@ struct App {
     cmd_tx: Sender<Command>,
 }
 
-impl epi::App for App {
-    fn update(&mut self, ctx: &CtxRef, frame: &Frame) {
+impl eframe::App for App {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
         let mut state = self.state.blocking_lock();
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -62,11 +59,7 @@ impl epi::App for App {
             ui_device_list(ui, &self.cmd_tx, &mut state);
         });
 
-        frame.request_repaint()
-    }
-
-    fn name(&self) -> &str {
-        "SteamVR Lighthouse Control"
+        ctx.request_repaint();
     }
 }
 
@@ -361,7 +354,7 @@ fn ui_header(ui: &mut Ui, cmd_tx: &Sender<Command>, app_state: &mut MutexGuard<A
             }
             None => {
                 if app_state.scanner.is_active() {
-                    Spinner::default().ui(ui);
+                    egui::Spinner::default().ui(ui);
                     ui.label("Scanning for base stations");
                 } else {
                     ui.label(format!("Found {} devices", app_state.device_entries.len()));
